@@ -38,22 +38,28 @@ Continue reading below for a complete guide on Ticknet!
 ### 5. Extensions & Adapters
 - **5.1 Word Sizes**
 - **5.2 Dynamic addresses**
-- **5.3 No PutByte/GetByte needed**
+- **5.3 Less commands
 - **5.4 Byte stream transmissions**
 ### 6. Usage Guide
 - **6.1 Setting Up a Ticknet Node**
     - 6.1.1 Required Components
     - 6.1.2 Address Configuration
 - **6.2 Testing if it works**
-### Build explanation?
-### 7. Future Upgrades and Roadmap
-- **7.1 Potential Features for Future Versions**
-	- 7.1.1 Secure Networks
-	- 7.1.2 Direct connections
-- **7.2 Community Contributions and Modifications**
-### 8. Glossary & References
-- **8.1 Glossary of Terms**
-- **8.2 References and External Links**
+### 7. Implementation Details
+- **7.1 Component Outline**
+- **7.2 Item Queue**
+- **7.3 Transmitter**
+- **7.4 Receiver**
+- **7.5 Channel selector**
+- **7.6 Priority Queue**
+### 8. Future Upgrades and Roadmap
+- **8.1 Potential Features for Future Versions**
+	- 8.1.1 Secure Networks
+	- 8.1.2 Direct connections
+- **8.2 Community Contributions and Modifications**
+### 9. Glossary & References
+- **9.1 Glossary of Terms**
+- **9.2 References and External Links**
 
 ---
 ## 1. Introduction
@@ -121,12 +127,12 @@ There are no checksums as it is traditional because no packet interference is ex
 #### 3.1.1 Header
 The header contains 3 fields each taking up 1 byte:
 - **Magic Number:** A non zero number that starts the packet so that receivers can know when a transmission is happening. If another protocol that uses the same address range (or even Ticknet on future versions) with a different packet structure can show that by picking a different magic number. If an unknown magic number is detected then the packet is ignored. The value for Ticknet is **69**.
-- **Packet Length:** The total length of the packet, which includes header length and payload length. This value must be be within **\[2, 26\]**. The length right after the magic number is important for nodes to know how long to ignore/capture the data.
+- **Packet Length:** The total length of the packet beyond this point, which includes sender address length and payload length. This value must be be within **\[1, 25\]**. The length right after the magic number is important for nodes to know how long to ignore/capture the data.
 - **Sender Address:** The address of the node sending the message.
 Destination address is not on the packet because it is implicitly sent on the channel (it is the channel address of where it was sent)
 #### 3.1.2 Payload
 The bytes immediately after the header are considered payload and there are as much of them as stated in the header. 
-Messages bigger than the maximum allowed must be broken down into multiple packets as Ticknet does not natively support it.
+Messages bigger than the maximum allowed must be broken down into multiple packets as Ticknet does not natively support it. The limit for payload in a packet is of 24 bytes. The reason is to give some leeway to application level headers and also be above 16 which is a nice number to segment packets.
 
 ### 3.2 Addressing scheme
 #### 3.2.1 Static addressing
@@ -141,8 +147,10 @@ Look in (TODO) for more information about Extensions/adapters or here TODO for f
 Ticknet strives for future and backwards compatibility between minor versions, but in the case of big changes that will restructure packets a new magic number must be used to indicate that the format following it is a different one. This means only Nodes in the same versions will be able to communicate as unsupported version messages will be ignored. 
 Magic numbers must be nonzero and number 255 is reserved for the event of lack of numbers. If 255 is used, then the following byte is used to distinguish between protocols/versions. This is not strictly enforced due to the lack of demand and is more of a guideline to follow.
 When the time comes, universal commands to ping nodes and ask for information such as versions supported will be implemented, but for now the lack of versions does not justify implementing it.
+
 #### 3.3.2 Channel addresses
  For future proofing, if every address is taken, then address 255 is used and the next byte after that can be used as a new extended address. This is not enforced in the current version.
+ 
 #### 3.3.3 Alternative protocol compatibility
 The above restrictions are for protocols that wish to use the same range of channel addresses as Ticknet, but there are alternative ways with less restrictions to not interfere with Ticknet.
 Prefixing channel numbers with a magic number would be the desired way as that adds little hardware cost, keeps the same speed and properties, and allows independent network space with zero collisions or shared network cycles.
@@ -172,21 +180,22 @@ TODO: update table for possible errors, explain the errors and feedback of the c
 | GetSize      | 6            | -          | PacketSize     |
 |              |              |            |                |
 
-**Setup**: starts the NIF and gets it online (internal clocks align, channel's ping bit starts along with random noise, starts receiving from global/own channel)
+**Setup**: starts the NIF and gets it online (internal clocks align, starts receiving from global/own channel)
 
-**Terminate**: stops the NIF and makes it offline (internal clocks align, channel's ping bit stops along with the random noise, stops receiving transmissions from global/own channel, and memory reset)
+**Terminate**: stops the NIF and makes it offline (internal clocks align, stops receiving transmissions from global/own channel, and memory reset)
 
-**PutByte**: Takes a data byte and writes it to the transmission buffer to later be send to the NIF whose address the user NIF is currently bound to. Excess data sent beyond the limit will not be stored and sent.
+**PutByte**: Takes a data byte and writes it to the transmission buffer to later be sent to the NIF whose address the user NIF is currently bound to. Excess data sent beyond the limit will not be stored and sent, and an error will be reported. 
 
-**Send**: Flushes the transmission buffer and sends the store data to the specified channel on Input Data. Metadata and sender address are included int the transmission by default.
+**Send**: Flushes the transmission buffer and sends the store data to the specified channel on Input Data. Header is included in the transmission by default. If no transmission was prepared, then operation will report an error and no packet will be sent.
 
-**GetByte**: Reads the next byte from the current received transmission. If a transmission is fully read, a NextPacket command needs to be issued for meaningful data to be read, otherwise it will return 0s. 
-The first byte of a transmission will be the length, and second will be the sender address. After that, payload data will follow byte by byte.
+**GetByte**: Reads the next byte from the current received transmission. If a transmission is fully read, a NextPacket command needs to be issued for meaningful data to be read, otherwise this operation will return 0s and an error will be reported. 
+The first byte of a transmission will be the sender address. After that, payload data will follow byte by byte.
 
-**NextPacket**: Discards the remaining bytes unread from the current packet and prepares automatically the next one. If there is no next packet, operation will fail (Every call to GetByte will be 0s). When all packet bytes are read, this command must be called to proceed to next one.
+**NextPacket**: Discards the remaining bytes unread from the current packet and prepares automatically the next one. If there is no next packet, operation will fail and an error will be reported (subsequent calls to GetByte will also fail). When all packet bytes are read, this command must be called to proceed to next one.
 
 **GetSize**: Returns how many bytes are left to read from current packet.
-### 4.2 Example usage
+
+### 4.2 Example usage <a id='4_2'></a>
 There is no human code for interacting with the interface, but the following examples are written in the URCL assembly language, providing a low level view of how CPUs might interact with the network interface to perform some basic operations.
 We will assume that Command port of the TN interface will be named `TN_cmd` and Data port will be named `TN_data`.
 Additionally to make it easier, we will directly use macros to map command names to their command codes:
@@ -247,7 +256,6 @@ IN R0 %TN_cmd
 OUT %TN_cmd @TERMINATE
 IN R0 %TN_cmd       // waiting for command result and discarding it
 ```
-TODO make this with loop and DW
 #### 4.2.3 Receiving a transmission
 Any transmission (sent directly or broadcasted) is received in the same way with no distinction. This program will save the sender of the transmission and print the message character by character in a loop.
 ```
@@ -284,3 +292,127 @@ IN R0 %TN_cmd       // waiting for command result and discarding it
 
 ---
 
+## 5. Extensions & Adapters
+
+Unlike real world communication technologies where the speed of computers far outmatches communication speed, in minecraft they are in the same level. This means that less load on the cpu side when controlling the interface or when simulating higher level concepts will help in terms of overall speed of the communication. 
+Because trying to cover all cases in a single piece of hardware would lead to a lot of complexity that would be very often unneeded, we Ticknet proposes an Adapter/Extension model.
+If a certain functionality is needed then the best approach is to include additional hardware at the head of the interface to allow for said functionality without having to burden the cpu with it.
+
+### 5.1 Word Sizes
+Ticknet works by sending a byte per cycle in the network, and the interface is expecting byte by byte interaction on both its I/O ports, but despite byte unit being a standard, cpus that do not have 8-bit words might face some issues.
+For example communication between cpus whose word size is more than 8 bits will need to serialize their words into multiple bytes and reconstruct them. This would traditionally cost extra cpu cycles doing bitwise operations. Cpus that have a word smaller than 8 bits would only be able to use a section of the bits and transmissions would be inefficient.
+
+In the proposed model, the solution is attaching an adapter that will have an identical interface to the original Ticknet interface and dispatch the original CPU operations into multiple interface operations, while hiding that work from the CPU.
+More specifically, a 16-bit cpu could send a 16-bit word to send across the network, and the adapter would split that word into 2 bytes and put them sequentially on a packet, and at the receiving end, it would merge the bytes.
+A 4-bit cpu would send multiple nibbles, and every pair would be grouped into a byte (with padding if necessary), transmitted and split at the end.
+
+### 5.2 Dynamic Addresses
+Node addresses are 8-bit and must be unique for any two online nodes. That is all that is needed for the network to function. This means that there is the possibility of the same node having different addresses in different network sessions or even change it address in the middle of a session. Whether or not this might other confuse nodes, it is another matter of debate.
+
+As mentioned in a previous section, it is possible then to have a dynamic addressed network, even if the underlaying Ticknet network is not aware of that. As such, an Extension for dynamic addressing can be implemented and included in the nodes as long as the properties mentioned are satisfied. So even if it is not part of the current version of Ticknet, one can use this extension to have dynamic addressing.
+
+A very useful complement to this extension is a DNS that maps names into dynamic addresses, solving the problem of getting the addresses.
+
+### 5.3 Less commands
+As it can be seen in TODO, every operation must wait for feedback of when it is done, and optionally (it is good practice) to check for errors before proceeding. This may not sound too bad, but when repeated many times these can slow down and add a lot of undesired instructions.
+For example: if an error occurred you might want to try again, this sort of behavior done on the cpu side must be done with loops which mean branches and for such a simple task it becomes complex pretty soon.
+
+However errors on operations only happen when there is an incorrect use of the interface, so if a program can guarantee that no error will be generated, then error checking can be skipped entirely. For common operations such as `getByte` or `putByte` they only fail when trying to exceed the limits on packet length, but on sending, making sure the data being send does not exceed the limit and on receiving, using the length field to control how many bytes are left to read ensures perfect use.
+
+Correct usage is not something the interface can control, but having to issue an operation to indicate the interface to update the port could be avoided if a single read/write to the data port would generate the appropriate `getByte` or `putByte` commands. 
+The same could be thought about other commands. If there is no shortage of I/O ports then each can be associated with a command as reduce the code complexity.
+When combined with perfect usage, it reduces length of programs as can be seen in the examples below.
+
+#### 5.3.1 Sending a transmission (revised)
+```
+OUT %TN_cmd @SETUP
+// interface is now online and listenning to incoming transmissions
+
+OUT %TN_data 'H'
+OUT %TN_data 'e'
+OUT %TN_data 'l'
+OUT %TN_data 'l'
+OUT %TN_data 'o'
+
+OUT %TN_send 0  // no need to check for errors:
+// memory is not full, message is not empty
+
+//After some time we turn it off
+OUT %TN_cmd @TERMINATE
+```
+
+#### 5.3.2 Receiving a transmission (revised)
+```
+OUT %TN_cmd @SETUP
+// interface is now online and listenning to incoming transmissions
+
+.busy_waiting
+OUT %TN_cmd @NEXT_PACKET  // try to get the next packet
+IN R1 %TN_cmd             // save result of operation in R1
+BNZ .busy_waiting R1      // if error code != 0 try again
+
+IN R1 %TN_size @GET_SIZE  // length in R1
+IN R2 %TN_data @GET_BYTE   // sender in R2
+
+.loop
+IN R2 %TN_data        // fetch the byte
+OUT %text R2          // print character
+DEC R1 R1             // decrement the length of remaining message
+BRP .loop R1          // if length > 0 go back
+
+//After some time we turn it off
+OUT %TN_cmd @TERMINATE
+```
+
+### 5.4 Byte stream transmissions
+
+Ticknet by default behaves a lot like UDP being message oriented instead of a connection oriented protocol. In some applications it is useful to have a byte stream flowing, and by default Ticknet does not support it. 
+Just like the previous cases, an adapter is the solution presented. It groups sections of the byte stream in the same packet and sends them whenever they get full. To make sure no unsent bytes get trapped indefinitely waiting for more data to fill the buffer, it is possible to flush the buffers on demand.
+On the receiving end, bytes are read in sequence just like normal, but on the end of a packet, it will automatically get the next one (if available) to provide a continuous stream of data.
+
+## 6. Usage Guide
+### 6.1 Setting Up a Ticknet Node
+#### 6.1.1 Required Components
+Before thinking about pasting the Ticknet nodes and starting communications, it is important to consider what kind of network is desired. The different properties and necessities will likely influence which version and even which adapters/extensions are going to be recommended.
+Another important factor is the possible existence of another competing wireless communication protocol that might conflict your server. If none exist then follow the instructions below.
+
+The names of the schematics follow a pattern to be easily identified: `TN_v<version>_<addressing>_<bits>_<extras>.schem`
+- `version` represents which version of the protocol it is using
+- `addressing` tells what kind of addressing mode it is using. It can be:
+	- `static`->  the default
+	- `dynamic` -> using the dynamic addressing extension (explained in TODO)
+- `bits` tells you how many bits the I/O ports are. Currently there is support for: `4b`, `8b`, `16b`
+- `extras` are for any other adapters to the interface. There can be multiple ones combined:
+	- `stream` it makes the network interface work with streams instead of packets
+	- `xports` it uses the version that has extra ports for each common command.
+
+The simplest and most compatible (but not most efficient) version is the default: `TN_v1_0_static_8b.schem`
+
+When efficiency of interaction is needed then `xports` will use more ports to make communication easier: `TN_v1_0_static_8b_xports.schem`
+
+For big servers where there will be hundreds of unique Ticknet devices (> 250) addresses would run out, so dynamic addressing should be used: `TN_v1_0_dynamic_8b.schem`
+
+If you are still unsure of which you should choose, come talk to us on Ticknet discord: TODO
+
+After choosing the schematic, download it, drag it into the schematics folder of your server (needs worldedit TODO link) or get access to it however your server does it, and paste it (`/paste`) in a clear space so you know what it looks like, and so you can later avoid breaking the nearby builds.
+In order to have it paste correctly you need to run the command: `/perf off`. This will ensure the initial state of the build is preserved and blocks wont update on pasting.
+
+#### 6.1.2 Address Configuration
+If you chose static address your build will come with the default value of 0 for your address. This is an invalid address and you will need to change it to a suitable value in order to operate it. There can never be two nodes with the same address online at the same time, so check with your server's management, or simply asking online players which addresses are taken.
+### 6.2 Testing if it works
+In order to know if it works, you can run some operations manually with two identical instances of your schematic. We recommend sending a value from one to the other (examples in TODO) and if that works fine, then all should be fine.
+
+If there was some issue, you can try the same steps again carefully to make sure you did not forget any important detail. If you are sure that you followed it correctly and it is still not working, then ask for help in our discord: TODO
+
+## 7. Implementation Details
+TODO explain what each parts does and post pictures of it (when it is done)
+
+## 8. Future Upgrades and Roadmap
+TODO talk about what we plan for future versions like secure communication, or dynamic addressing being default.
+
+## 9. Glossary & References
+TODO
+
+ticklink discord
+urcl discord
+worldedit
