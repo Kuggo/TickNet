@@ -169,16 +169,16 @@ Below is a table containing all the commands, the arguments, and further down a 
 TODO: update table for possible errors, explain the errors and feedback of the command port
  and the bitmask each does
 
-| Command Name | Command Code | Input Data | Output Data    |
-| ------------ | ------------ | ---------- | -------------- |
-| Setup        | 0            | -          | -              |
-| Terminate    | 1            | -          | -              |
-| PutByte      | 2            | DataByte   | -              |
-| Send         | 3            | Address    | -              |
-| GetByte      | 4            | -          | Source \| Data |
-| NextPacket   | 5            | -          | -              |
-| GetSize      | 6            | -          | PacketSize     |
-|              |              |            |                |
+| Command Name | Command Code | Input Data | Output Data  |
+| ------------ | ------------ | ---------- | ------------ |
+| Setup        | 0            | -          | -            |
+| Terminate    | 1            | -          | -            |
+| PutByte      | 2            | DataByte   | -            |
+| Send         | 3            | Address    | -            |
+| GetByte      | 4            | -          | Data         |
+| NextPacket   | 5            | -          | -            |
+| GetSize      | 6            | -          | # bytes left |
+| GetSender    | 7            | -          | Address      |
 
 **Setup**: starts the NIF and gets it online (internal clocks align, starts receiving from global/own channel)
 
@@ -194,6 +194,8 @@ The first byte of a transmission will be the sender address. After that, payload
 **NextPacket**: Discards the remaining bytes unread from the current packet and prepares automatically the next one. If there is no next packet, operation will fail and an error will be reported (subsequent calls to GetByte will also fail). When all packet bytes are read, this command must be called to proceed to next one.
 
 **GetSize**: Returns how many bytes are left to read from current packet.
+
+**GetSender**: Returns who sent the current transmission.
 
 ### 4.2 Example usage <a id='4_2'></a>
 There is no human code for interacting with the interface, but the following examples are written in the URCL assembly language, providing a low level view of how CPUs might interact with the network interface to perform some basic operations.
@@ -272,7 +274,7 @@ OUT %TN_cmd @GET_SIZE
 IN R0 %TN_cmd  // waiting for operation
 IN R1 %TN_data // length in R1
 
-OUT %TN_cmd @GET_SIZE
+OUT %TN_cmd @GET_SENDER
 IN R0 %TN_cmd  // waiting for operation
 IN R2 %TN_data // sender in R2
 
@@ -352,7 +354,7 @@ IN R1 %TN_cmd             // save result of operation in R1
 BNZ .busy_waiting R1      // if error code != 0 try again
 
 IN R1 %TN_size @GET_SIZE  // length in R1
-IN R2 %TN_data @GET_BYTE   // sender in R2
+IN R2 %TN_data @GET_SENDER   // sender in R2
 
 .loop
 IN R2 %TN_data        // fetch the byte
