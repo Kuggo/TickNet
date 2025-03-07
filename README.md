@@ -54,8 +54,8 @@ Continue reading below for a complete guide on Ticknet!
 - **7.6 Priority Queue**
 ### 8. Future Upgrades and Roadmap
 - **8.1 Potential Features for Future Versions**
-	- 8.1.1 Secure Networks
-	- 8.1.2 Direct connections
+	- 8.1.1 Direct channels
+	- 8.1.2 Dynamic addressing
 - **8.2 Community Contributions and Modifications**
 ### 9. Glossary & References
 - **9.1 Glossary of Terms**
@@ -68,7 +68,7 @@ Continue reading below for a complete guide on Ticknet!
 **Ticknet** is a wireless communication protocol for CPUs in Minecraft, designed to provide instant, reliable messaging across an entire dimension without requiring Redstone wiring or chunk loading. Built entirely using vanilla mechanics, Ticknet enables direct communication between nodes without hierarchy, ensuring that any node can send and receive messages efficiently in a cooperative network environment.
 
 ### Why Ticknet?
-Traditional non instant Redstone wiring introduces a 2-game tick delay every 18 blocks of distance, making long-range communication slow and impractical for CPU-based systems. Ticknet eliminates this limitation by using [**TickLink**](#ticklink) technology, a mechanism that leverages how Minecraft processes game logic to allow instantaneous communication anywhere in the same dimension. Since it operates entirely within the game’s existing mechanics, it does not require mods, plugins, or external tools.
+Traditional non-instant Redstone wiring introduces a 2-game tick delay every 18 blocks of distance, making long-range communication slow and impractical for CPU-based systems. Ticknet eliminates this limitation by using [**TickLink**](#ticklink) technology, a mechanism that leverages how Minecraft processes game logic to allow instantaneous communication anywhere in the same dimension. Since it operates entirely within the game’s existing mechanics, it does not require mods, plugins, or external tools.
 
 Ticknet’s flat network topology means that every node operates independently without requiring hierarchical structures, relays, or leader elections. Nodes can communicate directly without intermediaries, ensuring a **fast and scalable** system. Communication supported is unicast and broadcast. Multicast is not directly supported in this version, but potentially in the future it can.
 
@@ -106,8 +106,8 @@ They are undesirable because they corrupt transmissions, but there are 2 ways to
 - **Collision Prevention:** If collisions don't happen in the first place, then no data is lost (assuming a cooperative environment)
 
 The best option is to prevent collisions to maximize how much useful time there is for transmissions and that is what Ticknet does. 
-To achieve there is a special purpose bit named ping bit that controls which node is entitled to transmit. Whenever a node wants to transmit to a channel they start pinging that bit, and the same hardware will provide 1 to the node that is allowed to transmit and 0 to those that must wait.
-Internally there is a FIFO queue that works in modulus 16 and keeps track of the current head. If there are more than 16 people wanted to transmit in the same channel 2 people would get assigned permission and a collision would happen. Due to the low likelihood of that event, nothing in the current version is done to avoid it and that is another reason why the protocol is not perfect but **best-effort**. In future the limit of 16 can be raised (at the cost of bigger hardware) to allow for more traffic intense networks.
+Collisions are prevented by having every node agree on who is entitled to transmit at any given time. That is done by making nodes enter a FIFO queue, and a node every cycle checks if its position in the queue (mod 16) is 0. This is a side effect of how the technology is implemented using the game mechanics and means that if 16 or more nodes want to transmit at the same time in the same channel, then multiple people would get assigned permission.
+Due to the low likelihood of that event, nothing in the current version is done to avoid it and that is another reason why the protocol is not perfect but **best-effort**. In future the limit of 16 can be raised (at the cost of bigger hardware) to allow for more traffic intense networks.
 
 This system is designed for a cooperative environment as the head could never let go of the priority to transmit stopping others from ever getting access. So after a transmission they stop pinging and if potentially they want to transmit again they go to the end of the queue.
 
@@ -410,7 +410,23 @@ If there was some issue, you can try the same steps again carefully to make sure
 TODO explain what each parts does and post pictures of it (when it is done)
 
 ## 8. Future Upgrades and Roadmap
-TODO talk about what we plan for future versions like secure communication, or dynamic addressing being default.
+### 8.1 Potential Features for Future Versions
+The current specification is subject to changes and improvements.
+The next plans for Ticknet involve adding security mechanisms that ensure availability, confidentiality, and integrity of data sent. These will most likely be done using direct channels.
+#### 8.1.1 Direct Channels
+Direct channels are similar to normal channels except they are secret (non detectable by any means) to anyone outside the chosen group, and ensure perfect future/backward secrecy. This is true because all parties that willl belong to the group, will be at the same tick, be using the same redstone component priority and as such will be in the same channel. Additionally all future cycles will be tied to that priority in that same game tick, which means that even knowing which priority was used, one cannot join because that moment has passed, ensuring no messages on that channel will be eavesdropped. 
+
+This method relies on the fact that a channel can be created with no attacker. It is not possible to detect who is in that group channel. Channel creation is still in consideration to ensure safe and reliable group creation. This will also be most likely the best way to do multicast and avoid the need for a separate built-in implementation on normal channels.
+
+#### 8.1.2 Dynamic addressing
+
+As mentioned in the previous section (TODO), static address has the issue that 2 network addresses cannot be equal at the same time. A true plug and play node should not have to check all addresses online (and possibly not online that might turn on), but rather take a free address and adjust automatically.
+
+### 8.2 Community Contributions and Modifications
+Ticknet started as a small project, with very few people working on it, but while adoption becomes widespread, we expect interested people to want to contribute to it. That can be done by done by improving the specifications/standards, developing the needed hardware for them. 
+Alternatively, certain extensions and adapters for specific purposes can be done to lower the barrier or improve efficiency when interacting with it.
+
+If you wish to contribute, join our discord server (TODO) and ask.
 
 ## 9. Glossary & References
 TODO
