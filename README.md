@@ -21,7 +21,7 @@ The names of the schematics follow a pattern to be easily identified: `TN_v<vers
 - `<bits>` represents how many bits the I/O ports are. Currently there is support for: `4b`, `8b`, `16b`
 - `<extras>` are for any other adapters to the interface. There can be multiple ones combined:
 	- `<stream>` it makes the network interface work with streams instead of packets
-	- `<xports>` it uses the version that has extra ports for each common command.
+	- `<lports>` it uses the version that has less ports for each common command.
 
 ---
 # Ticknet in 5 mins
@@ -62,8 +62,8 @@ If the CPU wants to read without blocking, a simple SR latch that is set upon re
 | packetCount  | cmd      | read/input     | Reads 1 if there are more packets left to read after current one, and 0 otherwise.                   |
 | putByte      | data     | write/output   | Adds the byte to the current outgoing transmission (capped at 24).                                   |
 | getByte      | data     | read/input     | Gets the next byte from the received transmission (or 0 if none are left).                           |
-| send         | sender   | write/output   | Sets the destination node, and enqueues the current outgoing packet for transmission (0 broadcasts). |
-| getSender    | sender   | read/input     | Returns the sender of current received packet (0 if no packets left).                                |
+| send         | send     | write/output   | Sets the destination node, and enqueues the current outgoing packet for transmission (0 broadcasts). |
+| getSender    | send     | read/input     | Returns the sender of current received packet (0 if no packets left).                                |
 | getSize      | size     | read/input     | Returns how many bytes are left of the current received packet payload (0 if no packets left).       |
 
 Note that if 4 ports are not available for a cpu to control, then a different version is available that only uses 2 of them at the cost of making commands take extra steps. 
@@ -85,7 +85,7 @@ OUT %TN_cmd @SETUP     // interface is now online and listenning to incoming tra
 OUT %TN_data 'H'       // sending 'H' to the transmission buffer
 OUT %TN_data 'i'       // sending 'i' to the transmission buffer
 
-OUT %TN_sender destAddress
+OUT %TN_send destAddress
 
 //After some time we turn it off
 OUT %TN_cmd @TERMINATE
@@ -106,7 +106,7 @@ IN R1 %TN_cmd             // save result of operation in R1
 BNZ .busy_waiting R1      // if error code != 0 try again
 
 IN R1 %TN_size        // length in R1
-IN R2 %TN_sender      // sender in R2
+IN R2 %TN_send      // sender in R2
 
 .loop
 	IN R2 %TN_data    // fetch the byte
@@ -127,7 +127,8 @@ For more detailed and complete examples read the section on the [specification](
 
 Now that you know what TickNet is, how it can be used to communicate between nodes, all that is left is to setup your own so you can start experimenting with it. You will need [worldedit](https://www.curseforge.com/minecraft/mc-mods/worldedit) mod to be installed in order to import the schematic file and pasting it into the minecraft world.
 
-**WARNING:** the current versions are not rotation invariant, so **do NOT rotate** the schematic with world edit before pasting as that will break it. We are actively working on removing this limitation.
+**WARNING:** the current versions are not rotation invariant, so **do NOT rotate** the schematic with world edit before pasting as that will break it. It is also important to **NEVER** leave the interface on while its chunks are reloaded, like moving very far away, or quitting and joining the server.
+We are actively working on removing these limitations.
 
 The node needs direct sky light access in some locations so be sure to not cover that with any solid block. The time of day is irrelevant for the build and it will work regardless.
 A good practice is to paste the schematic in an empty area (or delete any previously existing redstone) and avoid moving it with the `move` command. It is recommended you paste again in the desired location.
@@ -136,7 +137,7 @@ The wireless technology is perfectly vanilla compatible, however some problems m
 The safest bet is just a redstone server that has entities enabled as dropping shulkers and items are a requirement.
 
 Here is the step by step process:
-1. Browse the `schematics/release` folder for the available nodes (for a simple default pick `TN_v1.0.0_static_8b.schem`)
+1. Browse the `schematics/release` folder for the available nodes (for a simple default pick `TN_v1.0.2_static_8b.schem`)
 2. Download the selected `.schem` file.
 3. Put the file into the schems folder of worldedit (if folder does not exist, create like shown)
 	- In Bukkit/Spigot servers: `.minecraft/config/worldedit/schematics`
@@ -145,7 +146,7 @@ Here is the step by step process:
 4. Run the following minecraft commands on the console in order:
 	1. `//perf off`
 	2. `//schem load <schem>` where `<schem>` is the schematic file name.
-	3. `//schem paste -a`
+	3. `//paste -a`
 5. Input a unique static address (how you manage that is up to the server you play on in case of multiplayer). You can find it in the side of the build where it leads to a red concrete wire.
 
 Test some of the above programs by inputting the ports directly and checking for the desired behaviour. If anything goes wrong and you are confident you followed the instructions carefully, you can ask for help directly in our [discord](https://discord.gg/fxMHSXdhYS) server.
