@@ -130,8 +130,8 @@ Now that you know what TickNet is, how it can be used to communicate between nod
 **WARNING:** the current versions are not rotation invariant, so **do NOT rotate** the schematic with world edit before pasting as that will break it. It is also important to **NEVER** leave the interface on while its chunks are reloaded, like moving very far away, or quitting and joining the server.
 We are actively working on removing these limitations.
 
-The node needs direct sky light access in some locations so be sure to not cover that with any solid block. The time of day is irrelevant for the build and it will work regardless.
-A good practice is to paste the schematic in an empty area (or delete any previously existing redstone) and avoid moving it with the `move` command. It is recommended you paste again in the desired location.
+**WARNING:** The node needs direct sky light access in some locations so be sure to **not cover** it with any solid block (the time of day is irrelevant for the build and it will work regardless).
+**Always paste** the schematic in an empty area (delete any previously existing redstone). Similarly, instead of moving it with the `move` command, you must paste it again in the desired location.
 
 The wireless technology is perfectly vanilla compatible, however some problems might arise in singleplayer, and as such it is recommended that a local server is used or [this mod]([https://github.com/MESLewis/local-server-entity-id-fix/](https://github.com/MESLewis/local-server-entity-id-fix/ "https://github.com/MESLewis/local-server-entity-id-fix/")) applied.
 The safest bet is just a redstone server that has entities enabled as dropping shulkers and items are a requirement.
